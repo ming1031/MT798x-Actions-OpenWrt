@@ -127,12 +127,6 @@ jobs:
         chmod +x $DIY_P1_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P1_SH
-    - name: 添加自定义插件
-      run: |
-        cd openwrt
-        git clone https://github.com/Kiougar/luci-wrtbwmon package/luci-app-wrtbwmon
-        git clone https://github.com/sirpdboy/luci-app-netspeedtest package/luci-app-netspeedtest
-        git clone https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
 
     - name: 更新 & 安装 feeds
       run: |
@@ -196,6 +190,11 @@ jobs:
         sed -i 's/CONFIG_PACKAGE_mtwifi-cfg=y/CONFIG_PACKAGE_wifi-profile=y/g' .config
         sed -i 's/CONFIG_PACKAGE_lua-cjson=y/CONFIG_WIFI_NORMAL_SETTING=y/g' .config
 
+    - name: 取消编译dockerman
+      if: github.event.inputs.NO_DOCKERMAN == 'true'
+      run: |
+        cd openwrt
+        sed -i '/CONFIG_PACKAGE_luci-app-dockerman=y/d' .config
 
     - name: SSH链接管理
       uses: P3TERX/ssh2actions@v1.0.0
