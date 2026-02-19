@@ -4,3 +4,4 @@ src-git-full routing https://github.com/openwrt/routing.git;openwrt-21.02
 src-git-full telephony https://github.com/openwrt/telephony.git;openwrt-21.02
 src-git wrtbwmon https://github.com/Kiougar/luci-wrtbwmon
 src-git netspeedtest https://github.com/sirpdboy/luci-app-netspeedtest
+git clone https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon
