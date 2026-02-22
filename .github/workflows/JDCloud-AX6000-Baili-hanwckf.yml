@@ -52,9 +52,8 @@ on:
 env:
   ###############手动修改##############
   OPENWRT_NAME: hanwckf
-  UPLOAD_TAG_NAME: jdcloud_re-cp-03
-  REPO_URL: https://github.com/lgs2007m/immortalwrt-mt798x
-  REPO_BRANCH: ${{ github.event.inputs.REPO_BRANCH || 'v7672' }}
+  REPO_URL: https://github.com/hanwckf/immortalwrt-mt798x
+  REPO_BRANCH: openwrt-21.02
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .mtwifi-cfg.config
   DIY_P1_SH: diy-part1.sh
