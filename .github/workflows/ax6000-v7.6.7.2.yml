@@ -8,7 +8,7 @@
 # Description: Build OpenWrt using GitHub Actions
 #
 ###############手动修改##############
-name: JDCloud-AX6000-Baili-hanwckf
+name: JDCloud-AX6000-v7.6.7.2
 
 on:
   repository_dispatch:
