@@ -14,14 +14,6 @@ on:
   repository_dispatch:
   workflow_dispatch:
     inputs:
-      REPO_BRANCH:
-        description: 'Select Source Branch'
-        required: true
-        default: 'v7672'
-        type: choice
-        options:
-        - v7672
-        - v7661
       LAN_IP:
         description: 'Set LAN IP Address'
         required: true
@@ -36,17 +28,15 @@ on:
         - v7.6.6.1-fw-20230808(recommend)
         - v7.6.7.2-fw-default
         - v7.6.7.2-fw-20221208
-        - v7.6.7.2-fw-20230306
         - v7.6.7.2-fw-20230421
         - v7.6.7.2-fw-20230808
         - v7.6.7.2-fw-20231024
         - v7.6.6.1-fw-default
         - v7.6.6.1-fw-20221208
-        - v7.6.6.1-fw-20230306
         - v7.6.6.1-fw-20230421
         - v7.6.6.1-fw-20231024
         - v7.6.6.1-fw-20240823
-     SW_DRIVER:
+      SW_DRIVER:
         description: 'Choose Switch Driver'
         required: true
         default: 'GSW'
@@ -58,6 +48,7 @@ on:
         description: 'SSH connection to Actions'
         required: false
         default: 'false'
+
 
 env:
   ###############手动修改##############
