@@ -3,6 +3,5 @@ src-git-full luci https://github.com/lgs2007m/immortalwrt-mt798x-luci.git;openwr
 src-git-full routing https://github.com/openwrt/routing.git;openwrt-21.02
 src-git-full telephony https://github.com/openwrt/telephony.git;openwrt-21.02
 
-src-git wrtbwmon https://github.com/brvphoenix/wrtbwmon;master
-src-git luci_wrtbwmon https://github.com/brvphoenix/luci-app-wrtbwmon;master
-src-git netspeedtest https://github.com/sirpdboy/luci-app-netspeedtest;master
+src-git argon https://github.com/jerrykuku/luci-theme-argon.git;master
+
