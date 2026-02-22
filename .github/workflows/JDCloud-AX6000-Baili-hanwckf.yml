@@ -97,14 +97,6 @@ jobs:
         large-packages: false
         swap-storage: false
 
-    - name: 缓存编译依赖 (Cache dl)
-      uses: actions/cache@v3
-      with:
-        path: /workdir/openwrt/dl
-        key: ${{ runner.os }}-openwrt-dl-${{ hashFiles('**/feeds.conf.default') }}-${{ hashFiles('**/.config') }}
-        restore-keys: |
-          ${{ runner.os }}-openwrt-dl-
-
     - name: 下载固件源码
       working-directory: /workdir
       run: |
