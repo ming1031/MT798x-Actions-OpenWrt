@@ -12,3 +12,6 @@ echo "CONFIG_PACKAGE_luci-app-argon-config=y" >> .config
 
 # 4. 手动设置 MT7986A CPU 频率显示
 sed -i '/"mediatek"\/\*|\"mvebu"\/\*/{n; s/.*/\tcpu_freq="2.0GHz" ;;/}' package/emortal/autocore/files/generic/cpuinfo
+
+# 将 luci-app-eqos-mtk 分类改为 Network
+sed -i 's/menu "Services"/menu "Network"/' package/feeds/immortalwrt/luci-app-eqos-mtk/Kconfig
