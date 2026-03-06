@@ -247,9 +247,9 @@ CONFIG_PACKAGE_lua-cjson=y
 # --- 已移除 SSR / vssr / ssr-plus 相关配置（全部删去） ---
 
 # 主题与配置
-CONFIG_PACKAGE_luci-theme-argon=y
-CONFIG_PACKAGE_luci-app-argon-config=y
-CONFIG_PACKAGE_luci-i18n-argon-config-zh-cn=y
+CONFIG_PACKAGE_luci-theme-aurora=y
+CONFIG_PACKAGE_luci-theme-aurora-config=y
+CONFIG_PACKAGE_luci-i18n-aurora-config-zh-cn=y
 
 # OpenClash 本体不安装，但添加其常见依赖（方便后续单独安装 openclash）
 CONFIG_PACKAGE_dnsmasq-full=y
