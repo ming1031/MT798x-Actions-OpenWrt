@@ -1,0 +1,106 @@
+name: Build OpenWrt JDCloud Baili
+
+on:
+  workflow_dispatch:
+
+env:
+  REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x-6.6
+  REPO_BRANCH: openwrt-21.02
+  CONFIG_FILE: 24.10-6.6/AX6000.config
+  DIY_P1_SH: 24.10-6.6/diy-part1.sh
+  DIY_P2_SH: 24.10-6.6/diy-part2.sh
+  OPENWRT_NAME: ImmortalWrt
+  DEVICE_NAME: JDCloud-Baili
+  IP_ADDR: 10.10.10.1
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Initialization environment
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+        sudo -E apt-get -qq update
+        sudo -E apt-get -qq install $(curl -fsSL https://raw.githubusercontent.com/teddysun/build/master/openwrt/depends-ubuntu-2204)
+        sudo -E apt-get -qq install rename
+        sudo -E apt-get -qq autoremove --purge
+        sudo -E apt-get -qq clean
+        sudo timedatectl set-timezone "$TZ"
+        echo "FILE_DATE=$(date +%Y%m%d%H%M)" >> $GITHUB_ENV
+
+    - name: Clone source code
+      run: |
+        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        cd openwrt
+        echo "IP_ADDR=$(sed -n 's/.*IP_ADDR=\(.*\)/\1/p' $GITHUB_WORKSPACE/$DIY_P2_SH | head -n 1)" >> $GITHUB_ENV
+
+    - name: Load custom feeds
+      run: |
+        chmod +x $DIY_P1_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/$DIY_P1_SH
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: Load custom configuration
+      run: |
+        [ -e $CONFIG_FILE ] && cp $CONFIG_FILE openwrt/.config
+        chmod +x $DIY_P2_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/$DIY_P2_SH
+        make defconfig
+
+    - name: Download package
+      run: cd openwrt && make download -j8
+
+    - name: Compile the firmware
+      run: |
+        cd openwrt
+        make -j$(nproc) || make -j1 V=s
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 整理文件并重命名
+      id: organize
+      run: | 
+        cd openwrt/bin/targets/*/*
+        rm -rf packages
+        # 使用 rename 命令根据你的 env 变量重命名固件
+        rename 's/.*jdcloud_re-cp-03/${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}/' *.bin
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 上传固件到 Actions Artifacts
+      uses: actions/upload-artifact@v4
+      if: steps.organize.outputs.status == 'success'
+      with:
+        name: ${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}
+        path: ${{ env.FIRMWARE }}
+
+    - name: 生成 Release 标签
+      id: tag
+      if: steps.organize.outputs.status == 'success'
+      run: |
+        echo "release_tag=${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}" >> $GITHUB_OUTPUT
+        touch release.txt
+        echo "京东云百里 (RE-CP-03) 专属固件" >> release.txt
+        echo "- 源码: ${{ env.REPO_URL }}" >> release.txt
+        echo "- 分支: ${{ env.REPO_BRANCH }}" >> release.txt
+        echo "- 默认后台: ${{ env.IP_ADDR }}" >> release.txt
+        echo "- 集成: kmod-dummy, Nikki 依赖, Argon 主题, Lucky, HNAT加速" >> release.txt
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 发布固件至 Release
+      uses: softprops/action-gh-release@v2
+      if: steps.tag.outputs.status == 'success'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        files: ${{ env.FIRMWARE }}/*
+        name: ${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}
+        tag_name: ${{ steps.tag.outputs.release_tag }}
+        body_path: release.txt
