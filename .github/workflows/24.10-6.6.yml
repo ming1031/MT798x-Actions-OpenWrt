@@ -5,7 +5,7 @@ on:
 
 env:
   REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x-6.6
-  REPO_BRANCH: openwrt-21.02
+  REPO_BRANCH: openwrt-24.10-6.6
   CONFIG_FILE: 24.10-6.6/AX6000.config
   DIY_P1_SH: 24.10-6.6/diy-part1.sh
   DIY_P2_SH: 24.10-6.6/diy-part2.sh
