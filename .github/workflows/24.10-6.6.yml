@@ -42,6 +42,7 @@ jobs:
     - name: Load custom feeds
       run: |
         chmod +x $DIY_P1_SH
+        # 强制在源码目录下运行脚本
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P1_SH
         ./scripts/feeds update -a
