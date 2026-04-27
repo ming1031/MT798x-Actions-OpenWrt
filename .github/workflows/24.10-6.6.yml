@@ -31,7 +31,8 @@ jobs:
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
         sudo timedatectl set-timezone "$TZ"
-        echo "FILE_DATE=$(date +%Y%m%d%H%M)" >> $GITHUB_ENV
+        # 优化日期格式，让文件名和 Release 标题更美观易读
+        echo "FILE_DATE=$(date +%Y.%m.%d-%H%M)" >> $GITHUB_ENV
 
     - name: Clone source code
       run: |
@@ -88,11 +89,11 @@ jobs:
       run: |
         echo "release_tag=${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}" >> $GITHUB_OUTPUT
         touch release.txt
-        echo "京东云百里 (RE-CP-03) 专属固件" >> release.txt
-        echo "- 源码: ${{ env.REPO_URL }}" >> release.txt
-        echo "- 分支: ${{ env.REPO_BRANCH }}" >> release.txt
+        echo "京东云百里 (RE-CP-03) 专属固件 | eMMC 版" >> release.txt
+        echo "编译时间: $(date +"%Y年%m月%d日 %H:%M")" >> release.txt
+        echo "- 固件源码: padavanonly/immortalwrt-mt798x-6.6" >> release.txt
+        echo "- 源码分支: ${{ env.REPO_BRANCH }}" >> release.txt
         echo "- 默认后台: ${{ env.IP_ADDR }}" >> release.txt
-        echo "- 特性: 已集成 kmod-dummy, Nikki 底层依赖, Argon 主题" >> release.txt
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: 发布固件至 Release
@@ -102,6 +103,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         files: ${{ env.FIRMWARE }}/*
-        name: ${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}
+        # 这里把 Release 的显示名称加上了编译日期
+        name: 京东云百里 编译固件 ${{ env.FILE_DATE }}
         tag_name: ${{ steps.tag.outputs.release_tag }}
         body_path: release.txt
