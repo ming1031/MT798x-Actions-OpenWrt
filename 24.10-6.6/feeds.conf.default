@@ -1,12 +1,11 @@
-# 核心源 (基于 ImmortalWrt 24.10)
 src-git packages https://github.com/immortalwrt/packages.git;openwrt-24.10
 src-git luci https://github.com/immortalwrt/luci.git;openwrt-24.10
 src-git routing https://github.com/immortalwrt/routing.git;openwrt-24.10
 src-git telephony https://github.com/immortalwrt/telephony.git;openwrt-24.10
 
-# Argon 主题 (必须使用 master 分支以修复 24.10 上的 __entries 报错)
-src-git-full argon https://github.com/jerrykuku/luci-theme-argon.git;master
-src-git-full argon_config https://github.com/jerrykuku/luci-app-argon-config.git;master
+# 修复 Argon 的关键：使用 src-git 且不带 master 后缀（除非默认分支不是 master）
+src-git argon https://github.com/jerrykuku/luci-theme-argon.git
+src-git argon_config https://github.com/jerrykuku/luci-app-argon-config.git
 
-# Lucky 官方源 (包含 lucky 和 luci-app-lucky)
+# Lucky 官方源
 src-git lucky https://github.com/gdy666/lucky-files.git;main
