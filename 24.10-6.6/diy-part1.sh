@@ -1,9 +1,11 @@
-#!/bin/bash
-# Description: OpenWrt DIY script part 1 (Before Update feeds)
+# 进入 package 目录
+# 注意：如果你的脚本是在 openwrt 根目录执行的，请确保路径正确
+# 建议在脚本里先 cd package
 
-# 移除可能冲突的源
-sed -i '/nikki/d' feeds.conf.default
+# 1. 克隆修复版 Argon 主题
+rm -rf lean/luci-theme-argon # 如果有旧的先删掉
+git clone -b master https://github.com/jerrykuku/luci-theme-argon.git lean/luci-theme-argon
+git clone -b master https://github.com/jerrykuku/luci-app-argon-config.git lean/luci-app-argon-config
 
-# 2. 如果你想用最新版的 Argon 主题，也可以取消下面这两行的注释来拉取最新源码
-rm -rf package/lean/luci-theme-argon
-git clone -b 18.06 https://github.com/jerrykuku/luci-theme-argon.git package/lean/luci-theme-argon
+# 2. 克隆 Lucky 插件
+git clone https://github.com/gdy666/luci-app-lucky.git lean/luci-app-lucky
