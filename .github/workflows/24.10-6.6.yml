@@ -7,6 +7,7 @@ env:
   REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x-6.6
   REPO_BRANCH: openwrt-24.10-6.6
   CONFIG_FILE: 24.10-6.6/AX6000.config
+  FEEDS_CONF: 24.10-6.6/feeds.conf.default
   DIY_P1_SH: 24.10-6.6/diy-part1.sh
   DIY_P2_SH: 24.10-6.6/diy-part2.sh
   OPENWRT_NAME: ImmortalWrt
