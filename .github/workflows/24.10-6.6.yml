@@ -28,6 +28,7 @@ jobs:
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
         sudo -E apt-get -qq update
         sudo -E apt-get -qq install $(curl -fsSL https://raw.githubusercontent.com/teddysun/build/master/openwrt/depends-ubuntu-2204)
+        # 确保安装了 rename 和 golang，Lucky 编译需要 go
         sudo -E apt-get -qq install rename golang-go
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
@@ -38,27 +39,29 @@ jobs:
       run: |
         git clone $REPO_URL -b $REPO_BRANCH openwrt
         cd openwrt
-        # 从配置文件或 DIY 脚本中提取 IP 逻辑（如果需要的话）
 
     - name: 加载自定义 feeds
       run: |
-        # 1. 优先使用你仓库里的 feeds 配置文件
+        # 1. 覆盖 feeds.conf.default
         [ -e $FEEDS_CONF ] && cp $FEEDS_CONF openwrt/feeds.conf.default
         
-        # 2. 执行 DIY Part 1 脚本
         chmod +x $DIY_P1_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P1_SH
         
-        # 3. 更新源
+        # 2. 更新 feeds
         ./scripts/feeds update -a
         
+        # 3. 【重要】清理导致 grep 报错的残留
+        rm -rf feeds/*.tmp
+        rm -rf feeds/*.index
+        
         # 4. 【核心修复】解决 24.10 LuCI 崩溃
-        # 强制删除官方 feed 中的旧版主题，确保使用你 feeds.conf.default 中添加的 jerrykuku 兼容版
+        # 删除官方库里的旧版 Argon，确保使用你在 DIY 脚本里 clone 的版本
         rm -rf feeds/luci/themes/luci-theme-argon
         rm -rf feeds/luci/applications/luci-app-argon-config
         
-        # 5. 安装源
+        # 5. 安装 feeds
         ./scripts/feeds install -a
 
     - name: 加载自定义配置
@@ -66,10 +69,12 @@ jobs:
         [ -e $CONFIG_FILE ] && cp $CONFIG_FILE openwrt/.config
         chmod +x $DIY_P2_SH
         cd openwrt
+        
+        # 执行 DIY Part 2 (这里面我们会写 git clone 逻辑)
         $GITHUB_WORKSPACE/$DIY_P2_SH
         
-        # 自动处理默认 IP
-        sed -i "s/10.10.10.1/$IP_ADDR/g" package/base-files/files/bin/config_generate
+        # 修正：将默认的 192.168.1.1 替换为你的 10.10.10.1
+        sed -i "s/192.168.1.1/$IP_ADDR/g" package/base-files/files/bin/config_generate
         
         make defconfig
 
@@ -89,11 +94,11 @@ jobs:
 
     - name: 整理文件并重命名
       id: organize
-      if: steps.tag.outputs.status != 'failure'
+      if: steps.build.outputs.status == 'success'
       run: | 
         cd openwrt/bin/targets/*/*
         rm -rf packages
-        # 针对百里的重命名逻辑
+        # 匹配百里固件名称
         rename 's/.*jdcloud_re-cp-03/${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}/' *.bin
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
