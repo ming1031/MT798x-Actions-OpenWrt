@@ -9,8 +9,6 @@ env:
   CONFIG_FILE: 24.10-6.6/AX6000.config
   DIY_P1_SH: 24.10-6.6/diy-part1.sh
   DIY_P2_SH: 24.10-6.6/diy-part2.sh
-  OPENWRT_NAME: ImmortalWrt
-  DEVICE_NAME: JDCloud-Baili
   IP_ADDR: 10.10.10.1
   TZ: Asia/Shanghai
 
@@ -28,95 +26,61 @@ jobs:
         sudo -E apt-get -qq update
         sudo -E apt-get -qq install $(curl -fsSL https://raw.githubusercontent.com/teddysun/build/master/openwrt/depends-ubuntu-2204)
         sudo -E apt-get -qq install rename golang-go
-        sudo -E apt-get -qq autoremove --purge
-        sudo -E apt-get -qq clean
         sudo timedatectl set-timezone "$TZ"
-        echo "FILE_DATE=$(date +%Y.%m.%d-%H%M)" >> $GITHUB_ENV
 
     - name: 克隆源码
       run: |
         git clone $REPO_URL -b $REPO_BRANCH openwrt
-        cd openwrt
 
-    - name: 加载自定义 feeds
+    - name: 强制生成 Feeds 配置
       run: |
         cd openwrt
-        # 1. 强制写入核心源，不读取外部文件，彻底规避换行符和路径报错
+        # 直接物理删除旧文件，强行写入，不读仓库里的 feeds.conf.default
+        rm -f feeds.conf.default
         echo 'src-git packages https://github.com/immortalwrt/packages.git;openwrt-24.10' > feeds.conf.default
         echo 'src-git luci https://github.com/immortalwrt/luci.git;openwrt-24.10' >> feeds.conf.default
         echo 'src-git routing https://github.com/immortalwrt/routing.git;openwrt-24.10' >> feeds.conf.default
         echo 'src-git telephony https://github.com/immortalwrt/telephony.git;openwrt-24.10' >> feeds.conf.default
         
-        # 2. 执行 DIY Part 1
+        # 打印出来检查一下，防止 echo 出错
+        cat feeds.conf.default
+        
+        # 执行 DIY1
         chmod +x $GITHUB_WORKSPACE/$DIY_P1_SH
         $GITHUB_WORKSPACE/$DIY_P1_SH
         
-        # 3. 更新源 (增加详细日志)
+        # 更新并安装，加上详细日志显示
         ./scripts/feeds update -a
-        
-        # 4. 彻底解决 Argon 主题在 24.10 下的崩溃问题
-        # 先删除官方库里自带的旧版，稍后在 DIY2 中直接 clone 兼容版
-        rm -rf feeds/luci/themes/luci-theme-argon
-        rm -rf feeds/luci/applications/luci-app-argon-config
-        
-        # 5. 安装源
         ./scripts/feeds install -a
 
-    - name: 加载自定义配置
+    - name: 加载自定义配置与插件
       run: |
         [ -e $CONFIG_FILE ] && cp $CONFIG_FILE openwrt/.config
-        chmod +x $DIY_P2_SH
         cd openwrt
         
-        # 自动将默认的 192.168.1.1 修改为你的 10.10.10.1
+        # 修正后台 IP: 将默认的 192.168.1.1 改为 10.10.10.1
         sed -i "s/192.168.1.1/$IP_ADDR/g" package/base-files/files/bin/config_generate
         
-        # 执行 DIY Part 2 (在此脚本中直接 clone Argon 和 Lucky)
+        # 执行 DIY2 (直接克隆 Argon 和 Lucky)
+        chmod +x $GITHUB_WORKSPACE/$DIY_P2_SH
         $GITHUB_WORKSPACE/$DIY_P2_SH
         
+        # 强制更新配置
         make defconfig
 
     - name: 下载软件包
       run: |
         cd openwrt
         make download -j8
-        find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
     - name: 编译固件
       run: |
         cd openwrt
-        echo -e "$(nproc) thread compile"
         make -j$(nproc) || make -j1 V=s
-        echo "status=success" >> $GITHUB_OUTPUT
 
-    - name: 整理文件并重命名
-      id: organize
-      if: steps.build.outputs.status == 'success'
-      run: | 
-        cd openwrt/bin/targets/*/*
-        rm -rf packages
-        rename 's/.*jdcloud_re-cp-03/${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}/' *.bin
-        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-        echo "status=success" >> $GITHUB_OUTPUT
-
-    - name: 上传固件至 Artifacts
+    - name: 上传固件
       uses: actions/upload-artifact@v4
-      if: steps.organize.outputs.status == 'success'
       with:
-        name: ${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}
-        path: ${{ env.FIRMWARE }}
-
-    - name: 发布至 Release
-      uses: softprops/action-gh-release@v2
-      if: steps.organize.outputs.status == 'success'
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        files: ${{ env.FIRMWARE }}/*
-        name: 京东云百里 24.10 固件 ${{ env.FILE_DATE }}
-        tag_name: ${{ env.FILE_DATE }}
-        body: |
-          📦 硬件: 京东云百里 (RE-CP-03)
-          🌐 默认后台: ${{ env.IP_ADDR }}
-          🔑 默认密码: 无
+        name: ImmortalWrt-Baili-Firmware
+        path: openwrt/bin/targets/mediatek/mt7986/*.bin
