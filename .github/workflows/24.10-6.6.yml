@@ -118,3 +118,12 @@ jobs:
           📦 硬件: 京东云百里 (RE-CP-03)
           🌐 默认IP: ${{ env.IP_ADDR }}
           🔑 默认密码: 无
+
+          🧩 源码:
+          - 主源码: ${{ env.REPO_URL }}
+          - 分支: ${{ env.REPO_BRANCH }}
+          - 配置文件: ${{ env.CONFIG_FILE }}
+          - DIY1: ${{ env.DIY_P1_SH }}
+          - DIY2: ${{ env.DIY_P2_SH }}
+
+          🕒 编译时间: ${{ env.FILE_DATE }}
