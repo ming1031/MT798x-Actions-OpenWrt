@@ -42,24 +42,27 @@ jobs:
 
     - name: 加载自定义 feeds
       run: |
-        # 1. 覆盖 feeds.conf.default
+        # 1. 如果有自定义 feeds，先复制过去
         [ -e $FEEDS_CONF ] && cp $FEEDS_CONF openwrt/feeds.conf.default
         
+        # 2. 【核心修复】强制转换换行符，防止 Windows 回车符导致 update 失败
+        sed -i 's/\r$//' openwrt/feeds.conf.default
+        
+        # 3. 执行 DIY Part 1
         chmod +x $DIY_P1_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P1_SH
         
-        # 2. 更新 feeds
+        # 4. 更新源（这是最关键的一步，必须成功）
         ./scripts/feeds update -a
         
-        # 3. 【重要】清理导致 grep 报错的残留
-        rm -rf feeds/*.tmp
-        rm -rf feeds/*.index
-        
-        # 4. 【核心修复】解决 24.10 LuCI 崩溃
-        # 删除官方库里的旧版 Argon，确保使用你在 DIY 脚本里 clone 的版本
+        # 5. 【清理冲突】删除官方源里的旧版 Argon，确保使用后面 DIY2 里 clone 的新版
         rm -rf feeds/luci/themes/luci-theme-argon
         rm -rf feeds/luci/applications/luci-app-argon-config
+        
+        # 6. 安装源
+        ./scripts/feeds install -a
+
         
         # 5. 安装 feeds
         ./scripts/feeds install -a
