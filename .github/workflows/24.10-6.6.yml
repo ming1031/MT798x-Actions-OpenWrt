@@ -1,4 +1,4 @@
-name: Build OpenWrt JDCloud Baili
+name: Build OpenWrt JDCloud Baili (Stable)
 
 on:
   workflow_dispatch:
@@ -9,6 +9,8 @@ env:
   CONFIG_FILE: 24.10-6.6/AX6000.config
   DIY_P1_SH: 24.10-6.6/diy-part1.sh
   DIY_P2_SH: 24.10-6.6/diy-part2.sh
+  OPENWRT_NAME: ImmortalWrt
+  DEVICE_NAME: JDCloud-Baili
   IP_ADDR: 10.10.10.1
   TZ: Asia/Shanghai
 
@@ -20,67 +22,99 @@ jobs:
     - name: 检出代码
       uses: actions/checkout@v4
 
-    - name: 初始化编译环境
+    - name: 初始化环境
       run: |
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
-        sudo -E apt-get -qq update
-        sudo -E apt-get -qq install $(curl -fsSL https://raw.githubusercontent.com/teddysun/build/master/openwrt/depends-ubuntu-2204)
-        sudo -E apt-get -qq install rename golang-go
+        sudo apt-get -qq update
+        sudo apt-get -qq install $(curl -fsSL https://raw.githubusercontent.com/teddysun/build/master/openwrt/depends-ubuntu-2204)
+        sudo apt-get -qq install rename golang-go
+        sudo apt-get autoremove --purge -y
+        sudo apt-get clean
         sudo timedatectl set-timezone "$TZ"
+        echo "FILE_DATE=$(date +%Y.%m.%d-%H%M)" >> $GITHUB_ENV
 
     - name: 克隆源码
       run: |
         git clone $REPO_URL -b $REPO_BRANCH openwrt
 
-    - name: 强制生成 Feeds 配置
+    - name: 加载 feeds（稳定版）
       run: |
         cd openwrt
-        # 直接物理删除旧文件，强行写入，不读仓库里的 feeds.conf.default
-        rm -f feeds.conf.default
-        echo 'src-git packages https://github.com/immortalwrt/packages.git;openwrt-24.10' > feeds.conf.default
-        echo 'src-git luci https://github.com/immortalwrt/luci.git;openwrt-24.10' >> feeds.conf.default
-        echo 'src-git routing https://github.com/immortalwrt/routing.git;openwrt-24.10' >> feeds.conf.default
-        echo 'src-git telephony https://github.com/immortalwrt/telephony.git;openwrt-24.10' >> feeds.conf.default
-        
-        # 打印出来检查一下，防止 echo 出错
-        cat feeds.conf.default
-        
-        # 执行 DIY1
+
+        # ✅ 精简 feeds（避免 routing/telephony 坑）
+        cat > feeds.conf.default <<EOF
+        src-git packages https://github.com/immortalwrt/packages.git;openwrt-24.10
+        src-git luci https://github.com/immortalwrt/luci.git;openwrt-24.10
+        EOF
+
         chmod +x $GITHUB_WORKSPACE/$DIY_P1_SH
         $GITHUB_WORKSPACE/$DIY_P1_SH
-        
-        # 更新并安装，加上详细日志显示
+
         ./scripts/feeds update -a
+
+        # ✅ 防炸检测
+        [ -d feeds/packages ] || exit 1
+        [ -d feeds/luci ] || exit 1
+
+        # 删除旧 argon
+        rm -rf feeds/luci/themes/luci-theme-argon
+        rm -rf feeds/luci/applications/luci-app-argon-config
+
         ./scripts/feeds install -a
 
-    - name: 加载自定义配置与插件
+    - name: 加载配置
       run: |
         [ -e $CONFIG_FILE ] && cp $CONFIG_FILE openwrt/.config
+        chmod +x $DIY_P2_SH
         cd openwrt
-        
-        # 修正后台 IP: 将默认的 192.168.1.1 改为 10.10.10.1
+
+        # 修改默认 IP
         sed -i "s/192.168.1.1/$IP_ADDR/g" package/base-files/files/bin/config_generate
-        
-        # 执行 DIY2 (直接克隆 Argon 和 Lucky)
-        chmod +x $GITHUB_WORKSPACE/$DIY_P2_SH
+
         $GITHUB_WORKSPACE/$DIY_P2_SH
-        
-        # 强制更新配置
+
         make defconfig
 
-    - name: 下载软件包
+    - name: 下载包
       run: |
         cd openwrt
         make download -j8
         find dl -size -1024c -exec rm -f {} \;
 
     - name: 编译固件
+      id: build
       run: |
         cd openwrt
         make -j$(nproc) || make -j1 V=s
+        echo "status=success" >> $GITHUB_OUTPUT
 
-    - name: 上传固件
+    - name: 整理固件
+      id: organize
+      if: steps.build.outputs.status == 'success'
+      run: |
+        cd openwrt/bin/targets/*/*
+        rm -rf packages
+        rename 's/.*jdcloud_re-cp-03/${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}/' *.bin
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 上传 Artifact
       uses: actions/upload-artifact@v4
+      if: steps.organize.outputs.status == 'success'
       with:
-        name: ImmortalWrt-Baili-Firmware
-        path: openwrt/bin/targets/mediatek/mt7986/*.bin
+        name: ${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}
+        path: ${{ env.FIRMWARE }}
+
+    - name: 发布 Release
+      uses: softprops/action-gh-release@v2
+      if: steps.organize.outputs.status == 'success'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        files: ${{ env.FIRMWARE }}/*
+        name: 京东云百里 24.10 固件 ${{ env.FILE_DATE }}
+        tag_name: ${{ env.FILE_DATE }}
+        body: |
+          📦 硬件: 京东云百里 (RE-CP-03)
+          🌐 默认IP: ${{ env.IP_ADDR }}
+          🔑 默认密码: 无
