@@ -7,7 +7,6 @@ env:
   REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x-6.6
   REPO_BRANCH: openwrt-24.10-6.6
   CONFIG_FILE: 24.10-6.6/AX6000.config
-  FEEDS_CONF: 24.10-6.6/feeds.conf.default
   DIY_P1_SH: 24.10-6.6/diy-part1.sh
   DIY_P2_SH: 24.10-6.6/diy-part2.sh
   OPENWRT_NAME: ImmortalWrt
@@ -28,7 +27,6 @@ jobs:
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
         sudo -E apt-get -qq update
         sudo -E apt-get -qq install $(curl -fsSL https://raw.githubusercontent.com/teddysun/build/master/openwrt/depends-ubuntu-2204)
-        # 确保安装了 rename 和 golang，Lucky 编译需要 go
         sudo -E apt-get -qq install rename golang-go
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
@@ -42,29 +40,26 @@ jobs:
 
     - name: 加载自定义 feeds
       run: |
-        # 1. 如果有自定义 feeds，先复制过去
-        [ -e $FEEDS_CONF ] && cp $FEEDS_CONF openwrt/feeds.conf.default
-        
-        # 2. 【核心修复】强制转换换行符，防止 Windows 回车符导致 update 失败
-        sed -i 's/\r$//' openwrt/feeds.conf.default
-        
-        # 3. 执行 DIY Part 1
-        chmod +x $DIY_P1_SH
         cd openwrt
+        # 1. 强制写入核心源，不读取外部文件，彻底规避换行符和路径报错
+        echo 'src-git packages https://github.com/immortalwrt/packages.git;openwrt-24.10' > feeds.conf.default
+        echo 'src-git luci https://github.com/immortalwrt/luci.git;openwrt-24.10' >> feeds.conf.default
+        echo 'src-git routing https://github.com/immortalwrt/routing.git;openwrt-24.10' >> feeds.conf.default
+        echo 'src-git telephony https://github.com/immortalwrt/telephony.git;openwrt-24.10' >> feeds.conf.default
+        
+        # 2. 执行 DIY Part 1
+        chmod +x $GITHUB_WORKSPACE/$DIY_P1_SH
         $GITHUB_WORKSPACE/$DIY_P1_SH
         
-        # 4. 更新源（这是最关键的一步，必须成功）
+        # 3. 更新源 (增加详细日志)
         ./scripts/feeds update -a
         
-        # 5. 【清理冲突】删除官方源里的旧版 Argon，确保使用后面 DIY2 里 clone 的新版
+        # 4. 彻底解决 Argon 主题在 24.10 下的崩溃问题
+        # 先删除官方库里自带的旧版，稍后在 DIY2 中直接 clone 兼容版
         rm -rf feeds/luci/themes/luci-theme-argon
         rm -rf feeds/luci/applications/luci-app-argon-config
         
-        # 6. 安装源
-        ./scripts/feeds install -a
-
-        
-        # 5. 安装 feeds
+        # 5. 安装源
         ./scripts/feeds install -a
 
     - name: 加载自定义配置
@@ -73,11 +68,11 @@ jobs:
         chmod +x $DIY_P2_SH
         cd openwrt
         
-        # 执行 DIY Part 2 (这里面我们会写 git clone 逻辑)
-        $GITHUB_WORKSPACE/$DIY_P2_SH
-        
-        # 修正：将默认的 192.168.1.1 替换为你的 10.10.10.1
+        # 自动将默认的 192.168.1.1 修改为你的 10.10.10.1
         sed -i "s/192.168.1.1/$IP_ADDR/g" package/base-files/files/bin/config_generate
+        
+        # 执行 DIY Part 2 (在此脚本中直接 clone Argon 和 Lucky)
+        $GITHUB_WORKSPACE/$DIY_P2_SH
         
         make defconfig
 
@@ -101,7 +96,6 @@ jobs:
       run: | 
         cd openwrt/bin/targets/*/*
         rm -rf packages
-        # 匹配百里固件名称
         rename 's/.*jdcloud_re-cp-03/${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}/' *.bin
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
@@ -113,25 +107,16 @@ jobs:
         name: ${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}
         path: ${{ env.FIRMWARE }}
 
-    - name: 生成 Release 标签
-      id: tag
-      if: steps.organize.outputs.status == 'success'
-      run: |
-        echo "release_tag=${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}" >> $GITHUB_OUTPUT
-        touch release.txt
-        echo "📦 京东云百里 (RE-CP-03) 专属固件 | eMMC 版" >> release.txt
-        echo "🕒 编译时间: $(date +"%Y年%m月%d日 %H:%M")" >> release.txt
-        echo "🌐 默认后台: $IP_ADDR" >> release.txt
-        echo "🔗 源码: $REPO_URL ($REPO_BRANCH)" >> release.txt
-        echo "status=success" >> $GITHUB_OUTPUT
-
-    - name: 发布固件至 Release
+    - name: 发布至 Release
       uses: softprops/action-gh-release@v2
-      if: steps.tag.outputs.status == 'success'
+      if: steps.organize.outputs.status == 'success'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         files: ${{ env.FIRMWARE }}/*
-        name: 京东云百里 编译固件 ${{ env.FILE_DATE }}
-        tag_name: ${{ steps.tag.outputs.release_tag }}
-        body_path: release.txt
+        name: 京东云百里 24.10 固件 ${{ env.FILE_DATE }}
+        tag_name: ${{ env.FILE_DATE }}
+        body: |
+          📦 硬件: 京东云百里 (RE-CP-03)
+          🌐 默认后台: ${{ env.IP_ADDR }}
+          🔑 默认密码: 无
