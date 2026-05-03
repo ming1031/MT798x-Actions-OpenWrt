@@ -4,3 +4,6 @@ git clone https://github.com/jerrykuku/luci-app-argon-config package/luci-app-ar
 
 # Lucky
 git clone https://github.com/gdy666/luci-app-lucky package/lucky
+
+# Openclash
+git clone --depth 1 https://github.com/vernesong/OpenClash.git package/luci-app-openclash
