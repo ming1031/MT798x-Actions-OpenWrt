@@ -4,3 +4,6 @@ git clone https://github.com/jerrykuku/luci-app-argon-config package/luci-app-ar
 
 # Lucky
 git clone https://github.com/gdy666/luci-app-lucky package/lucky
+
+# Nikki
+git clone https://github.com/nikkinikki-org/OpenWrt-nikki.git package/nikki
