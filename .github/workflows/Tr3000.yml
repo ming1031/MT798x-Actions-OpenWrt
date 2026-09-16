@@ -237,26 +237,6 @@ jobs:
           🌐 默认 IP: ${{ env.IP_ADDR }}
           🔑 默认密码: 无
 
-          🎨 LuCI:
-          - Argon
-          - argon-config
-
-          📦 功能:
-          - USB
-          - Samba4
-          - MTK QoS
-          - wrtbwmon
-          - TurboACC-MTK
-          - OpenClash 依赖
-
-          🚫 未包含:
-          - OpenClash
-          - Lucky
-          - qBittorrent
-          - UPnP
-          - WireGuard
-          - Docker
-
           🧩 源码:
           - 主源码: ${{ env.REPO_URL }}
           - 分支: ${{ env.REPO_BRANCH }}
