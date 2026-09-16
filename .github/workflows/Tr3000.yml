@@ -1,0 +1,268 @@
+name: Build OpenWrt Cudy TR3000 V1
+
+on:
+  workflow_dispatch:
+
+env:
+  REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x-6.6
+  REPO_BRANCH: openwrt-24.10-6.6
+
+  CONFIG_FILE: Tr3000/Tr3000.config
+  DIY_P1_SH: Tr3000/diy-part1.sh
+  DIY_P2_SH: Tr3000/diy-part2.sh
+
+  OPENWRT_NAME: ImmortalWrt
+  DEVICE_NAME: Cudy-TR3000-V1
+  IP_ADDR: 10.10.10.1
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+
+    # ==========================================
+    # 检出自己的仓库
+    # ==========================================
+    - name: 检出代码
+      uses: actions/checkout@v4
+
+
+    # ==========================================
+    # 初始化编译环境
+    # ==========================================
+    - name: 初始化环境
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+
+        sudo apt-get -qq update
+
+        sudo apt-get -qq install \
+          $(curl -fsSL https://raw.githubusercontent.com/teddysun/build/master/openwrt/depends-ubuntu-2204)
+
+        sudo apt-get -qq install rename golang-go
+
+        sudo apt-get autoremove --purge -y
+        sudo apt-get clean
+
+        sudo timedatectl set-timezone "$TZ"
+
+        echo "FILE_DATE=$(date +%Y.%m.%d-%H%M)" >> $GITHUB_ENV
+
+
+    # ==========================================
+    # 克隆源码
+    # ==========================================
+    - name: 克隆源码
+      run: |
+        git clone \
+          $REPO_URL \
+          -b $REPO_BRANCH \
+          openwrt
+
+
+    # ==========================================
+    # 加载 feeds
+    # ==========================================
+    - name: 加载 feeds
+      run: |
+        cd openwrt
+
+        cat > feeds.conf.default <<EOF
+        src-git packages https://github.com/immortalwrt/packages.git;openwrt-24.10
+        src-git luci https://github.com/immortalwrt/luci.git;openwrt-24.10
+        EOF
+
+        chmod +x $GITHUB_WORKSPACE/$DIY_P1_SH
+
+        $GITHUB_WORKSPACE/$DIY_P1_SH
+
+        ./scripts/feeds update -a
+
+        # 防炸检测
+        [ -d feeds/packages ] || exit 1
+        [ -d feeds/luci ] || exit 1
+
+        ./scripts/feeds install -a
+
+
+    # ==========================================
+    # 加载 Cudy TR3000 配置
+    # ==========================================
+    - name: 加载配置
+      run: |
+
+        [ -e $CONFIG_FILE ] || {
+          echo "=========================================="
+          echo "ERROR: 配置文件不存在"
+          echo "$CONFIG_FILE"
+          echo "=========================================="
+          exit 1
+        }
+
+        cp $CONFIG_FILE openwrt/.config
+
+        cd openwrt
+
+        # 修改默认 IP
+        sed -i "s/192.168.1.1/$IP_ADDR/g" \
+          package/base-files/files/bin/config_generate
+
+        sed -i "s/10.0.0.1/$IP_ADDR/g" \
+          package/base-files/files/bin/config_generate
+
+        # 执行 TR3000 专用 DIY2
+        chmod +x $GITHUB_WORKSPACE/$DIY_P2_SH
+
+        $GITHUB_WORKSPACE/$DIY_P2_SH
+
+        # 生成最终配置
+        make defconfig
+
+
+    # ==========================================
+    # 显示最终目标
+    # ==========================================
+    - name: 检查编译配置
+      run: |
+        cd openwrt
+
+        echo "=========================================="
+        echo "Target:"
+        grep "^CONFIG_TARGET" .config || true
+
+        echo "=========================================="
+        echo "Cudy TR3000:"
+        grep "cudy_tr3000" .config || true
+
+        echo "=========================================="
+        echo "Argon:"
+        grep "luci-theme-argon" .config || true
+        grep "argon-config" .config || true
+
+        echo "=========================================="
+
+
+    # ==========================================
+    # 下载包
+    # ==========================================
+    - name: 下载包
+      run: |
+        cd openwrt
+
+        make download -j8
+
+        find dl -size -1024c -exec rm -f {} \;
+
+
+    # ==========================================
+    # 编译固件
+    # ==========================================
+    - name: 编译固件
+      id: build
+      run: |
+        cd openwrt
+
+        make -j$(nproc) || make -j1 V=s
+
+        echo "status=success" >> $GITHUB_OUTPUT
+
+
+    # ==========================================
+    # 整理固件
+    # ==========================================
+    - name: 整理固件
+      id: organize
+      if: steps.build.outputs.status == 'success'
+      run: |
+        cd openwrt/bin/targets/*/*
+
+        rm -rf packages
+
+        mkdir -p renamed
+
+        for file in *; do
+          if [ -f "$file" ]; then
+            case "$file" in
+              *cudy*|*Cudy*)
+                mv "$file" \
+                  "${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}-${file}"
+                ;;
+            esac
+          fi
+        done
+
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+
+        echo "=========================================="
+        echo "固件目录:"
+        ls -lh
+        echo "=========================================="
+
+        echo "status=success" >> $GITHUB_OUTPUT
+
+
+    # ==========================================
+    # 上传 Artifact
+    # ==========================================
+    - name: 上传 Artifact
+      uses: actions/upload-artifact@v4
+      if: steps.organize.outputs.status == 'success'
+      with:
+        name: ${{ env.FILE_DATE }}-${{ env.OPENWRT_NAME }}-${{ env.DEVICE_NAME }}
+        path: ${{ env.FIRMWARE }}
+
+
+    # ==========================================
+    # 发布 Release
+    # ==========================================
+    - name: 发布 Release
+      uses: softprops/action-gh-release@v2
+      if: steps.organize.outputs.status == 'success'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      with:
+        files: ${{ env.FIRMWARE }}/*
+
+        name: Cudy TR3000 V1 固件 ${{ env.FILE_DATE }}
+
+        tag_name: ${{ env.FILE_DATE }}
+
+        body: |
+          📦 硬件: Cudy TR3000 V1
+          💾 闪存: 128MB NAND / U-Boot Mod
+
+          🌐 默认 IP: ${{ env.IP_ADDR }}
+          🔑 默认密码: 无
+
+          🎨 LuCI:
+          - Argon
+          - argon-config
+
+          📦 功能:
+          - USB
+          - Samba4
+          - MTK QoS
+          - wrtbwmon
+          - TurboACC-MTK
+          - OpenClash 依赖
+
+          🚫 未包含:
+          - OpenClash
+          - Lucky
+          - qBittorrent
+          - UPnP
+          - WireGuard
+          - Docker
+
+          🧩 源码:
+          - 主源码: ${{ env.REPO_URL }}
+          - 分支: ${{ env.REPO_BRANCH }}
+
+          ⚙️ 配置:
+          - ${{ env.CONFIG_FILE }}
+
+          🕒 编译时间:
+          ${{ env.FILE_DATE }}
