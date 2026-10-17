@@ -17,11 +17,6 @@ git clone --depth=1 \
   https://github.com/jerrykuku/luci-app-argon-config.git \
   package/luci-app-argon-config
 
-# Nikki (Mihomo) 完整插件与 LuCI 界面
-git clone --depth=1 \
-  https://github.com/nikkinikki-org/OpenWrt-nikki.git \
-  package/OpenWrt-nikki
-
 echo "=========================================="
 echo " DIY Part 1 完成"
 echo "=========================================="
